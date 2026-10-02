@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Box,
@@ -112,6 +113,21 @@ export function normalizePolicyVersionRequest(
       content: clause.content.trim(),
     })),
   }
+}
+
+export function filtersForSavedPolicy(policyCode: string): PolicyFilters {
+  return { policyCode, active: 'false', page: 0 }
+}
+
+export async function refreshPolicyCachesAfterActivation(
+  queryClient: QueryClient,
+  updated: PolicyDetail,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['policies'] }),
+    queryClient.invalidateQueries({ queryKey: ['policy'] }),
+  ])
+  queryClient.setQueryData(['policy', updated.policyId], updated)
 }
 
 function PolicyEditorDialog({
@@ -323,8 +339,7 @@ function ActivationDialog({
   const mutation = useMutation({
     mutationFn: () => updatePolicyActivation(policy.policyId, nextActive),
     onSuccess: async (updated) => {
-      queryClient.setQueryData(['policy', updated.policyId], updated)
-      await queryClient.invalidateQueries({ queryKey: ['policies'] })
+      await refreshPolicyCachesAfterActivation(queryClient, updated)
       onClose()
     },
   })
@@ -495,6 +510,7 @@ export default function PolicyManagement() {
   })
 
   useEffect(() => {
+    if (policiesQuery.isPending) return
     const policies = policiesQuery.data?.content ?? []
     if (!policies.length) {
       setSelectedId(null)
@@ -599,7 +615,11 @@ export default function PolicyManagement() {
         source={detail}
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        onSaved={(policy) => setSelectedId(policy.policyId)}
+        onSaved={(policy) => {
+          setPolicyCodeInput(policy.policyCode)
+          setFilters(filtersForSavedPolicy(policy.policyCode))
+          setSelectedId(policy.policyId)
+        }}
       />
       {detail && (
         <ActivationDialog policy={detail} open={activationOpen} onClose={() => setActivationOpen(false)} />
