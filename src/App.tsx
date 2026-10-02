@@ -50,6 +50,7 @@ import type {
   ReportSummary,
   RiskLevel,
 } from './types'
+import PolicyManagement from './PolicyManagement'
 
 const labels: Record<string, string> = {
   PENDING: '대기',
@@ -425,6 +426,7 @@ function ActionDialog({
 }
 
 function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
+  const [section, setSection] = useState<'reports' | 'policies'>('reports')
   const [filters, setFilters] = useState<ReportFilters>({ reviewStatus: 'PENDING', analysisStatus: '', page: 0 })
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [actionOpen, setActionOpen] = useState(false)
@@ -467,6 +469,22 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
         <Toolbar>
           <Box className="brand-mark small">M</Box>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>Meetple 운영센터</Typography>
+          <Stack direction="row" spacing={0.5} className="top-navigation">
+            <Button
+              color="inherit"
+              variant={section === 'reports' ? 'contained' : 'text'}
+              onClick={() => setSection('reports')}
+            >
+              신고 검토
+            </Button>
+            <Button
+              color="inherit"
+              variant={section === 'policies' ? 'contained' : 'text'}
+              onClick={() => setSection('policies')}
+            >
+              운영 정책
+            </Button>
+          </Stack>
           <Button
             color="inherit"
             onClick={async () => {
@@ -481,7 +499,7 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
           </Button>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="xl" className="page-container">
+      {section === 'reports' ? <Container maxWidth="xl" className="page-container">
         <Stack spacing={0.5} sx={{ mb: 3 }}>
           <Typography variant="h5">신고 검토</Typography>
           <Typography color="text.secondary">AI 분석과 운영 정책 근거를 확인하고 최종 처리를 승인합니다.</Typography>
@@ -549,8 +567,10 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
             {detail && <ReportDetailPanel detail={detail} onAction={() => setActionOpen(true)} />}
           </Box>
         </Box>
-      </Container>
-      {detail && <ActionDialog detail={detail} open={actionOpen} onClose={() => setActionOpen(false)} />}
+      </Container> : <PolicyManagement />}
+      {section === 'reports' && detail && (
+        <ActionDialog detail={detail} open={actionOpen} onClose={() => setActionOpen(false)} />
+      )}
     </Box>
   )
 }

@@ -139,3 +139,76 @@ export interface ReportFilters {
   analysisStatus: AnalysisStatus | ''
   page: number
 }
+
+export type ModerationPolicyType =
+  | 'SPAM'
+  | 'ABUSE_OR_HARASSMENT'
+  | 'INAPPROPRIATE_CONTENT'
+  | 'FRAUD_OR_FALSE_INFORMATION'
+  | 'SAFETY'
+  | 'GENERAL'
+export type ModerationPolicyTargetType = 'ALL' | 'MEMBER' | 'MEETING' | 'CHAT_MESSAGE'
+export type PolicyAuditAction = 'CREATED' | 'VERSION_CREATED' | 'ACTIVATED' | 'DEACTIVATED'
+
+export interface PolicyFilters {
+  policyCode: string
+  active: '' | 'true' | 'false'
+  page: number
+}
+
+export interface PolicySummary {
+  policyId: number
+  policyCode: string
+  title: string
+  policyType: ModerationPolicyType
+  targetType: ModerationPolicyTargetType
+  effectiveFrom: string
+  effectiveTo: string | null
+  active: boolean
+  version: number
+  clauseCount: number
+  missingEmbeddingCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PolicyClause {
+  policyChunkId: number
+  clauseCode: string
+  chunkOrder: number
+  content: string
+  contentHash: string
+  embedded: boolean
+}
+
+export interface PolicyAudit {
+  auditId: number
+  administratorMemberId: number
+  administratorNickname: string
+  action: PolicyAuditAction
+  createdAt: string
+}
+
+export interface PolicyDetail extends Omit<PolicySummary, 'clauseCount'> {
+  embeddingModel: string
+  clauses: PolicyClause[]
+  audits: PolicyAudit[]
+}
+
+export interface PolicyClauseRequest {
+  clauseCode: string
+  content: string
+}
+
+export interface CreatePolicyVersionRequest {
+  title: string
+  policyType: ModerationPolicyType
+  targetType: ModerationPolicyTargetType
+  effectiveFrom: string
+  effectiveTo: string | null
+  clauses: PolicyClauseRequest[]
+}
+
+export interface CreatePolicyRequest extends CreatePolicyVersionRequest {
+  policyCode: string
+}
