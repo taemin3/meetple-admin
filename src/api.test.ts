@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyAction, login } from './api'
+import { ApiError, applyAction, login, SESSION_EXPIRED_EVENT } from './api'
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>()
@@ -44,8 +44,9 @@ function apiResponse(data: unknown, status = 200) {
 
 describe('admin API client', () => {
   beforeEach(() => {
-    vi.stubGlobal('sessionStorage', new MemoryStorage())
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.stubGlobal('sessionStorage', new MemoryStorage())
   })
 
   it('로그인 토큰을 사용해 관리자 처리 요청을 보낸다', async () => {
@@ -91,5 +92,23 @@ describe('admin API client', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/auth/reissue')
     const retriedHeaders = fetchMock.mock.calls[2][1]?.headers as Headers
     expect(retriedHeaders.get('Authorization')).toBe('Bearer new-access-token')
+  })
+
+  it('재발급도 실패하면 만료 이벤트를 보내고 세션을 제거한다', async () => {
+    const browserWindow = new EventTarget()
+    const expiredListener = vi.fn()
+    browserWindow.addEventListener(SESSION_EXPIRED_EVENT, expiredListener)
+    vi.stubGlobal('window', browserWindow)
+    sessionStorage.setItem('meetple.admin.access-token', 'expired-token')
+    sessionStorage.setItem('meetple.admin.refresh-token', 'expired-refresh-token')
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(apiResponse(null, 401))
+      .mockResolvedValueOnce(apiResponse(null, 401))
+
+    await expect(applyAction(12, 'DISMISS', '위반 근거 부족'))
+      .rejects.toBeInstanceOf(ApiError)
+
+    expect(expiredListener).toHaveBeenCalledOnce()
+    expect(sessionStorage.length).toBe(0)
   })
 })

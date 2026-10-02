@@ -11,6 +11,7 @@ import type {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 const ACCESS_TOKEN_KEY = 'meetple.admin.access-token'
 const REFRESH_TOKEN_KEY = 'meetple.admin.refresh-token'
+export const SESSION_EXPIRED_EVENT = 'meetple:session-expired'
 let reissuePromise: Promise<boolean> | null = null
 
 export class ApiError extends Error {
@@ -70,11 +71,16 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
-  if (response.status === 401 && retry) {
-    reissuePromise ??= reissue().finally(() => {
-      reissuePromise = null
-    })
-    if (await reissuePromise) return request<T>(path, init, false)
+  if (response.status === 401) {
+    if (retry) {
+      reissuePromise ??= reissue().finally(() => {
+        reissuePromise = null
+      })
+      if (await reissuePromise) return request<T>(path, init, false)
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
   }
   const body = await parseResponse<T>(response)
   return body.data

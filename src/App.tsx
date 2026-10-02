@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
@@ -32,6 +32,7 @@ import {
 } from '@mui/material'
 import {
   ApiError,
+  SESSION_EXPIRED_EVENT,
   applyAction,
   clearSession,
   getReport,
@@ -92,6 +93,22 @@ const initialActions: ModerationAction[] = [
   'SUSPEND_7_DAYS',
   'PERMANENT_SUSPENSION',
 ]
+
+const destructiveActions = new Set<ModerationAction>([
+  'SUSPEND_1_DAY',
+  'SUSPEND_3_DAYS',
+  'SUSPEND_7_DAYS',
+  'PERMANENT_SUSPENSION',
+  'FORCE_DELETE_MEETING',
+])
+
+export function isDestructiveAction(action: ModerationAction): boolean {
+  return destructiveActions.has(action)
+}
+
+export function clampPage(page: number, totalPages: number): number {
+  return Math.max(0, Math.min(page, totalPages - 1))
+}
 
 export function getAvailableActions(
   detail: Pick<ReportDetail, 'report' | 'targetState'>,
@@ -340,6 +357,7 @@ function ActionDialog({
 }) {
   const queryClient = useQueryClient()
   const actions = getAvailableActions(detail)
+  const availableActionKey = actions.join('|')
   const [action, setAction] = useState<ModerationAction>(actions[0] ?? 'DISMISS')
   const [reason, setReason] = useState('')
   const mutation = useMutation({
@@ -355,8 +373,11 @@ function ActionDialog({
   })
 
   useEffect(() => {
-    if (actions[0]) setAction(actions[0])
-  }, [detail.report.reportId])
+    if (!open) return
+    setAction(actions[0] ?? 'DISMISS')
+    setReason('')
+    mutation.reset()
+  }, [open, detail.report.reportId, availableActionKey])
 
   return (
     <Dialog open={open} onClose={mutation.isPending ? undefined : onClose} fullWidth maxWidth="sm">
@@ -392,7 +413,7 @@ function ActionDialog({
         <Button onClick={onClose} disabled={mutation.isPending}>취소</Button>
         <Button
           variant="contained"
-          color={action.includes('SUSPEND') || action.includes('DELETE') ? 'error' : 'primary'}
+          color={isDestructiveAction(action) ? 'error' : 'primary'}
           onClick={() => mutation.mutate()}
           disabled={!reason.trim() || mutation.isPending}
         >
@@ -426,8 +447,13 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
   }, [reportsQuery.data, selectedId])
 
   useEffect(() => {
-    if (reportsQuery.error instanceof ApiError && reportsQuery.error.status === 401) onSignedOut()
-  }, [reportsQuery.error, onSignedOut])
+    const totalPages = reportsQuery.data?.totalPages
+    if (totalPages === undefined) return
+    setFilters((current) => {
+      const page = clampPage(current.page, totalPages)
+      return page === current.page ? current : { ...current, page }
+    })
+  }, [reportsQuery.data?.totalPages])
 
   const updateFilter = (key: 'reviewStatus' | 'analysisStatus', value: string) => {
     setFilters((current) => ({ ...current, [key]: value, page: 0 }))
@@ -531,10 +557,17 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(hasSession)
-  const signedOut = useMemo(() => () => {
+  const queryClient = useQueryClient()
+  const signedOut = useCallback(() => {
     clearSession()
+    queryClient.clear()
     setAuthenticated(false)
-  }, [])
+  }, [queryClient])
+
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED_EVENT, signedOut)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, signedOut)
+  }, [signedOut])
 
   return authenticated
     ? <ModerationConsole onSignedOut={signedOut} />

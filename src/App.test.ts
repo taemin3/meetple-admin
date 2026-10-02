@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getAvailableActions } from './App'
+import { clampPage, getAvailableActions, isDestructiveAction } from './App'
 import type { ReportDetail } from './types'
 
 function detail(
@@ -37,5 +37,17 @@ describe('getAvailableActions', () => {
     expect(getAvailableActions(detail('MEETING', 'RESOLVED', {
       meetingDeletedAt: '2026-10-02T09:00:00',
     }))).toEqual(['RESTORE_MEETING'])
+  })
+})
+
+describe('moderation console helpers', () => {
+  it('결과 페이지 수가 줄면 마지막 유효 페이지로 이동한다', () => {
+    expect(clampPage(4, 3)).toBe(2)
+    expect(clampPage(2, 0)).toBe(0)
+  })
+
+  it('영구 정지를 파괴적 처리로 표시한다', () => {
+    expect(isDestructiveAction('PERMANENT_SUSPENSION')).toBe(true)
+    expect(isDestructiveAction('DISMISS')).toBe(false)
   })
 })
