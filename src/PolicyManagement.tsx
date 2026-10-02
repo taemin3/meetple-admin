@@ -5,6 +5,7 @@ import {
   Alert,
   Box,
   Button,
+  ButtonBase,
   Chip,
   CircularProgress,
   Container,
@@ -29,6 +30,7 @@ import {
   Typography,
 } from '@mui/material'
 import {
+  ApiError,
   createPolicy,
   createPolicyVersion,
   getPolicies,
@@ -86,6 +88,10 @@ function formatDate(value: string | null | undefined): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '요청을 처리하지 못했습니다.'
+}
+
+export function isAccessDenied(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403
 }
 
 export function canActivatePolicy(
@@ -409,8 +415,19 @@ function PolicyTable({
               className="report-row"
             >
               <TableCell>
-                <strong>{policy.policyCode}</strong>
-                <Typography variant="body2" color="text.secondary">{policy.title}</Typography>
+                <ButtonBase
+                  className="policy-select-button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect(policy.policyId)
+                  }}
+                  aria-label={`${policy.policyCode} 버전 ${policy.version} 선택`}
+                >
+                  <Box>
+                    <strong>{policy.policyCode}</strong>
+                    <Typography variant="body2" color="text.secondary">{policy.title}</Typography>
+                  </Box>
+                </ButtonBase>
               </TableCell>
               <TableCell>{targetTypeLabels[policy.targetType]}</TableCell>
               <TableCell>v{policy.version}</TableCell>
@@ -531,6 +548,7 @@ export default function PolicyManagement() {
   }, [policiesQuery.data?.totalPages])
 
   const detail = detailQuery.data ?? null
+  const accessDenied = isAccessDenied(policiesQuery.error)
   return (
     <>
       <Container maxWidth="xl" className="page-container">
@@ -549,7 +567,10 @@ export default function PolicyManagement() {
             새 정책 등록
           </Button>
         </Stack>
-        {policiesQuery.error && <Alert severity="error" sx={{ mb: 2 }}>{errorMessage(policiesQuery.error)}</Alert>}
+        {accessDenied && <Alert severity="error" sx={{ mb: 2 }}>이 계정에는 관리자 권한이 없습니다.</Alert>}
+        {policiesQuery.error && !accessDenied && (
+          <Alert severity="error" sx={{ mb: 2 }}>{errorMessage(policiesQuery.error)}</Alert>
+        )}
         <Box className="console-grid">
           <Paper className="list-panel" elevation={0}>
             <Stack direction={{ xs: 'column', sm: 'row' }} className="filter-bar" spacing={1.5}>

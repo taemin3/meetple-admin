@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   canActivatePolicy,
   filtersForSavedPolicy,
+  isAccessDenied,
   normalizePolicyVersionRequest,
   refreshPolicyCachesAfterActivation,
 } from './PolicyManagement'
+import { ApiError } from './api'
 import type { PolicyDetail } from './types'
 
 describe('policy management helpers', () => {
@@ -52,5 +54,11 @@ describe('policy management helpers', () => {
 
     expect(queryClient.getQueryState(['policy', 10])?.isInvalidated).toBe(true)
     expect(queryClient.getQueryData(['policy', 11])).toEqual(updatedVersion)
+  })
+
+  it('정책 API의 403만 관리자 권한 부족으로 구분한다', () => {
+    expect(isAccessDenied(new ApiError(403, '권한이 없습니다.'))).toBe(true)
+    expect(isAccessDenied(new ApiError(500, '서버 오류'))).toBe(false)
+    expect(isAccessDenied(new Error('네트워크 오류'))).toBe(false)
   })
 })

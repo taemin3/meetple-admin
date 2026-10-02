@@ -59,6 +59,8 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .history-row { padding: 10px 0; border-bottom: 1px solid #edf2f7; }
 .clause-editor, .policy-clause { padding: 16px; }
 .policy-content { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.policy-select-button { width: 100%; justify-content: flex-start; text-align: left; border-radius: 4px; }
+.policy-select-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
 
 @media (max-width: 1000px) {
   .console-grid { grid-template-columns: 1fr; }
