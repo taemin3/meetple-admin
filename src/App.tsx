@@ -111,6 +111,16 @@ const suspensionActions: SuspensionAction[] = [
   'PERMANENT_SUSPENSION',
 ]
 
+export function getAvailableAdditionalSuspensions(
+  detail: Pick<ReportDetail, 'report' | 'targetState'>,
+  now = new Date(),
+): SuspensionAction[] {
+  if (detail.report.targetType !== 'MEETING' || detail.report.reviewStatus !== 'PENDING') return []
+  if (detail.targetState.permanentlySuspendedAt) return []
+  if (detail.targetState.suspendedUntil && new Date(detail.targetState.suspendedUntil) > now) return []
+  return suspensionActions
+}
+
 export function isDestructiveAction(action: ModerationAction): boolean {
   return destructiveActions.has(action)
 }
@@ -355,7 +365,7 @@ function ReportDetailPanel({ detail, onAction }: { detail: ReportDetail; onActio
   )
 }
 
-function ActionDialog({
+export function ActionDialog({
   detail,
   open,
   onClose,
@@ -366,6 +376,7 @@ function ActionDialog({
 }) {
   const queryClient = useQueryClient()
   const actions = getAvailableActions(detail)
+  const availableAdditionalSuspensions = getAvailableAdditionalSuspensions(detail)
   const availableActionKey = actions.join('|')
   const [action, setAction] = useState<ModerationAction>(actions[0] ?? 'DISMISS')
   const [additionalAction, setAdditionalAction] = useState<SuspensionAction | ''>('')
@@ -380,7 +391,7 @@ function ActionDialog({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['reports'] }),
-        queryClient.invalidateQueries({ queryKey: ['report', detail.report.reportId] }),
+        queryClient.invalidateQueries({ queryKey: ['report'] }),
       ])
       setReason('')
       onClose()
@@ -417,7 +428,7 @@ function ActionDialog({
               {actions.map((item) => <MenuItem key={item} value={item}>{display(item)}</MenuItem>)}
             </Select>
           </FormControl>
-          {action === 'FORCE_DELETE_MEETING' && (
+          {action === 'FORCE_DELETE_MEETING' && availableAdditionalSuspensions.length > 0 && (
             <>
               <FormControl fullWidth>
                 <InputLabel id="additional-action-label">모임장 추가 제재</InputLabel>
@@ -428,7 +439,7 @@ function ActionDialog({
                   onChange={(event) => setAdditionalAction(event.target.value as SuspensionAction | '')}
                 >
                   <MenuItem value="">추가 정지 없음</MenuItem>
-                  {suspensionActions.map((item) => (
+                  {availableAdditionalSuspensions.map((item) => (
                     <MenuItem key={item} value={item}>{display(item)}</MenuItem>
                   ))}
                 </Select>
@@ -439,6 +450,9 @@ function ActionDialog({
                 </Alert>
               )}
             </>
+          )}
+          {action === 'FORCE_DELETE_MEETING' && availableAdditionalSuspensions.length === 0 && (
+            <Alert severity="info">모임장이 이미 정지 중이어서 추가 정지를 함께 적용할 수 없습니다.</Alert>
           )}
           <TextField
             label="처리 사유"
@@ -501,6 +515,12 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
 
   const updateFilter = (key: 'reviewStatus' | 'analysisStatus', value: string) => {
     setFilters((current) => ({ ...current, [key]: value, page: 0 }))
+  }
+  const openActionDialog = async () => {
+    const refreshed = await detailQuery.refetch()
+    if (refreshed.data && getAvailableActions(refreshed.data).length > 0) {
+      setActionOpen(true)
+    }
   }
   const detail = detailQuery.data
   const accessDenied = reportsQuery.error instanceof ApiError && reportsQuery.error.status === 403
@@ -606,7 +626,7 @@ function ModerationConsole({ onSignedOut }: { onSignedOut: () => void }) {
           <Box>
             {detailQuery.isPending && selectedId && <Box className="loading"><CircularProgress size={30} /></Box>}
             {detailQuery.error && <Alert severity="error">{errorMessage(detailQuery.error)}</Alert>}
-            {detail && <ReportDetailPanel detail={detail} onAction={() => setActionOpen(true)} />}
+            {detail && <ReportDetailPanel detail={detail} onAction={() => { void openActionDialog() }} />}
           </Box>
         </Box>
       </Container> : <PolicyManagement />}

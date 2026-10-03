@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { clampPage, getAvailableActions, isDestructiveAction } from './App'
+import {
+  clampPage,
+  getAvailableActions,
+  getAvailableAdditionalSuspensions,
+  isDestructiveAction,
+} from './App'
 import type { ReportDetail } from './types'
 
 function detail(
@@ -49,5 +54,16 @@ describe('moderation console helpers', () => {
   it('영구 정지를 파괴적 처리로 표시한다', () => {
     expect(isDestructiveAction('PERMANENT_SUSPENSION')).toBe(true)
     expect(isDestructiveAction('DISMISS')).toBe(false)
+  })
+
+  it('이미 정지 중인 모임장에게 추가 정지 선택지를 제공하지 않는다', () => {
+    expect(getAvailableAdditionalSuspensions(
+      detail('MEETING', 'PENDING', { suspendedUntil: '2026-10-04T09:00:00' }),
+      new Date('2026-10-03T09:00:00'),
+    )).toEqual([])
+    expect(getAvailableAdditionalSuspensions(
+      detail('MEETING', 'PENDING', { suspendedUntil: '2026-10-02T09:00:00' }),
+      new Date('2026-10-03T09:00:00'),
+    )).toContain('SUSPEND_3_DAYS')
   })
 })
