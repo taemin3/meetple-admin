@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyAction, login, SESSION_EXPIRED_EVENT } from './api'
+import {
+  ApiError,
+  applyAction,
+  createPolicyVersion,
+  getPolicies,
+  login,
+  SESSION_EXPIRED_EVENT,
+  updatePolicyActivation,
+} from './api'
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>()
@@ -110,5 +118,54 @@ describe('admin API client', () => {
 
     expect(expiredListener).toHaveBeenCalledOnce()
     expect(sessionStorage.length).toBe(0)
+  })
+
+  it('운영 정책 필터를 관리자 목록 API query로 전달한다', async () => {
+    sessionStorage.setItem('meetple.admin.access-token', 'access-token')
+    sessionStorage.setItem('meetple.admin.refresh-token', 'refresh-token')
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(apiResponse({
+      content: [],
+      page: 1,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+      first: false,
+      last: true,
+    }))
+
+    await getPolicies({ policyCode: ' SAFETY ', active: 'false', page: 1 })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/v1/admin/moderation-policies?page=1&size=20&policyCode=SAFETY&active=false',
+    )
+  })
+
+  it('새 정책 버전 생성과 활성 상태 변경 계약을 그대로 전송한다', async () => {
+    sessionStorage.setItem('meetple.admin.access-token', 'access-token')
+    sessionStorage.setItem('meetple.admin.refresh-token', 'refresh-token')
+    const policy = { policyId: 31, policyCode: 'SAFETY', version: 2 }
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(apiResponse(policy, 201))
+      .mockResolvedValueOnce(apiResponse({ ...policy, active: true }))
+    const payload = {
+      title: '안전 정책 개정',
+      policyType: 'SAFETY' as const,
+      targetType: 'ALL' as const,
+      effectiveFrom: '2026-10-03',
+      effectiveTo: null,
+      clauses: [{ clauseCode: 'SAFETY_1', content: '위험 행위를 금지합니다.' }],
+    }
+
+    await createPolicyVersion(30, payload)
+    await updatePolicyActivation(31, true)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/admin/moderation-policies/30/versions', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/admin/moderation-policies/31/activation', expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ active: true }),
+    }))
   })
 })

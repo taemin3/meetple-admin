@@ -42,6 +42,8 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 
 .brand-mark.small { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; margin-right: 12px; }
 .top-bar { border-bottom: 1px solid #e2e8f0; }
+.top-navigation { margin-right: 12px; }
+.top-navigation .MuiButton-contained { color: #1d4ed8; background: #dbeafe; box-shadow: none; }
 .page-container { padding-top: 30px; padding-bottom: 50px; }
 .console-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.8fr); gap: 20px; align-items: start; }
 .list-panel, .detail-panel { border: 1px solid #e2e8f0; overflow: hidden; }
@@ -55,6 +57,10 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 .policy-row { padding: 10px 12px; }
 .policy-row span { color: #64748b; }
 .history-row { padding: 10px 0; border-bottom: 1px solid #edf2f7; }
+.clause-editor, .policy-clause { padding: 16px; }
+.policy-content { margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.policy-select-button { width: 100%; justify-content: flex-start; text-align: left; border-radius: 4px; }
+.policy-select-button:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
 
 @media (max-width: 1000px) {
   .console-grid { grid-template-columns: 1fr; }
@@ -65,4 +71,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
   .page-container { padding-left: 12px; padding-right: 12px; }
   .list-panel { overflow-x: auto; }
   .detail-panel { padding: 18px; }
+  .top-bar .MuiToolbar-root { flex-wrap: wrap; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+  .top-navigation { order: 3; width: 100%; margin-right: 0; }
+  .top-navigation .MuiButton-root { flex: 1; }
 }

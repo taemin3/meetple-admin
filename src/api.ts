@@ -1,8 +1,13 @@
 import type {
   ApiResponse,
+  CreatePolicyRequest,
+  CreatePolicyVersionRequest,
   LoginResponse,
   ModerationAction,
   PageResponse,
+  PolicyDetail,
+  PolicyFilters,
+  PolicySummary,
   ReportDetail,
   ReportFilters,
   ReportSummary,
@@ -139,5 +144,46 @@ export async function applyAction(
   await request(`/api/v1/admin/reports/${reportId}/actions`, {
     method: 'POST',
     body: JSON.stringify({ action, reason }),
+  })
+}
+
+export async function getPolicies(filters: PolicyFilters): Promise<PageResponse<PolicySummary>> {
+  const params = new URLSearchParams({
+    page: String(filters.page),
+    size: '20',
+  })
+  if (filters.policyCode.trim()) params.set('policyCode', filters.policyCode.trim())
+  if (filters.active) params.set('active', filters.active)
+  return request(`/api/v1/admin/moderation-policies?${params.toString()}`)
+}
+
+export async function getPolicy(policyId: number): Promise<PolicyDetail> {
+  return request(`/api/v1/admin/moderation-policies/${policyId}`)
+}
+
+export async function createPolicy(payload: CreatePolicyRequest): Promise<PolicyDetail> {
+  return request('/api/v1/admin/moderation-policies', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createPolicyVersion(
+  policyId: number,
+  payload: CreatePolicyVersionRequest,
+): Promise<PolicyDetail> {
+  return request(`/api/v1/admin/moderation-policies/${policyId}/versions`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updatePolicyActivation(
+  policyId: number,
+  active: boolean,
+): Promise<PolicyDetail> {
+  return request(`/api/v1/admin/moderation-policies/${policyId}/activation`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
   })
 }
