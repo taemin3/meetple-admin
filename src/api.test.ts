@@ -80,6 +80,32 @@ describe('admin API client', () => {
     expect(actionHeaders.get('Authorization')).toBe('Bearer access-token')
   })
 
+  it('모임 강제 삭제와 모임장 정지를 함께 요청한다', async () => {
+    sessionStorage.setItem('meetple.admin.access-token', 'access-token')
+    sessionStorage.setItem('meetple.admin.refresh-token', 'refresh-token')
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(apiResponse({ actionId: 1, additionalActionId: 2 }, 201))
+
+    await applyAction(
+      10,
+      'FORCE_DELETE_MEETING',
+      '허위 비용 안내 확인',
+      'SUSPEND_3_DAYS',
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/admin/reports/10/actions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'FORCE_DELETE_MEETING',
+          additionalAction: 'SUSPEND_3_DAYS',
+          reason: '허위 비용 안내 확인',
+        }),
+      }),
+    )
+  })
+
   it('access token 만료 시 재발급 후 요청을 한 번만 재시도한다', async () => {
     sessionStorage.setItem('meetple.admin.access-token', 'expired-token')
     sessionStorage.setItem('meetple.admin.refresh-token', 'refresh-token')

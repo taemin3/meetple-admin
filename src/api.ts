@@ -11,6 +11,7 @@ import type {
   ReportDetail,
   ReportFilters,
   ReportSummary,
+  SuspensionAction,
 } from './types'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -140,10 +141,15 @@ export async function applyAction(
   reportId: number,
   action: ModerationAction,
   reason: string,
+  additionalAction?: SuspensionAction,
 ): Promise<void> {
   await request(`/api/v1/admin/reports/${reportId}/actions`, {
     method: 'POST',
-    body: JSON.stringify({ action, reason }),
+    body: JSON.stringify({
+      action,
+      ...(additionalAction ? { additionalAction } : {}),
+      reason,
+    }),
   })
 }
 
