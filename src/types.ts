@@ -27,6 +27,11 @@ export type ModerationAction =
   | 'FORCE_DELETE_MEETING'
   | 'RELEASE_SUSPENSION'
   | 'RESTORE_MEETING'
+export type SuspensionAction =
+  | 'SUSPEND_1_DAY'
+  | 'SUSPEND_3_DAYS'
+  | 'SUSPEND_7_DAYS'
+  | 'PERMANENT_SUSPENSION'
 
 export interface ApiResponse<T> {
   status: number

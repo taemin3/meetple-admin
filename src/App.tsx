@@ -49,6 +49,7 @@ import type {
   ReportReviewStatus,
   ReportSummary,
   RiskLevel,
+  SuspensionAction,
 } from './types'
 import PolicyManagement from './PolicyManagement'
 
@@ -102,6 +103,13 @@ const destructiveActions = new Set<ModerationAction>([
   'PERMANENT_SUSPENSION',
   'FORCE_DELETE_MEETING',
 ])
+
+const suspensionActions: SuspensionAction[] = [
+  'SUSPEND_1_DAY',
+  'SUSPEND_3_DAYS',
+  'SUSPEND_7_DAYS',
+  'PERMANENT_SUSPENSION',
+]
 
 export function isDestructiveAction(action: ModerationAction): boolean {
   return destructiveActions.has(action)
@@ -360,9 +368,15 @@ function ActionDialog({
   const actions = getAvailableActions(detail)
   const availableActionKey = actions.join('|')
   const [action, setAction] = useState<ModerationAction>(actions[0] ?? 'DISMISS')
+  const [additionalAction, setAdditionalAction] = useState<SuspensionAction | ''>('')
   const [reason, setReason] = useState('')
   const mutation = useMutation({
-    mutationFn: () => applyAction(detail.report.reportId, action, reason.trim()),
+    mutationFn: () => applyAction(
+      detail.report.reportId,
+      action,
+      reason.trim(),
+      action === 'FORCE_DELETE_MEETING' && additionalAction ? additionalAction : undefined,
+    ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['reports'] }),
@@ -376,6 +390,7 @@ function ActionDialog({
   useEffect(() => {
     if (!open) return
     setAction(actions[0] ?? 'DISMISS')
+    setAdditionalAction('')
     setReason('')
     mutation.reset()
   }, [open, detail.report.reportId, availableActionKey])
@@ -393,11 +408,38 @@ function ActionDialog({
               labelId="action-label"
               label="처리 유형"
               value={action}
-              onChange={(event) => setAction(event.target.value as ModerationAction)}
+              onChange={(event) => {
+                const nextAction = event.target.value as ModerationAction
+                setAction(nextAction)
+                if (nextAction !== 'FORCE_DELETE_MEETING') setAdditionalAction('')
+              }}
             >
               {actions.map((item) => <MenuItem key={item} value={item}>{display(item)}</MenuItem>)}
             </Select>
           </FormControl>
+          {action === 'FORCE_DELETE_MEETING' && (
+            <>
+              <FormControl fullWidth>
+                <InputLabel id="additional-action-label">모임장 추가 제재</InputLabel>
+                <Select
+                  labelId="additional-action-label"
+                  label="모임장 추가 제재"
+                  value={additionalAction}
+                  onChange={(event) => setAdditionalAction(event.target.value as SuspensionAction | '')}
+                >
+                  <MenuItem value="">추가 정지 없음</MenuItem>
+                  {suspensionActions.map((item) => (
+                    <MenuItem key={item} value={item}>{display(item)}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {additionalAction && (
+                <Alert severity="error">
+                  모임 강제 삭제와 {display(additionalAction)}가 한 번의 승인으로 함께 적용됩니다.
+                </Alert>
+              )}
+            </>
+          )}
           <TextField
             label="처리 사유"
             value={reason}
