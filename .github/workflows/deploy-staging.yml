@@ -55,7 +55,7 @@ jobs:
     environment: staging
     concurrency:
       group: staging-admin-deployment
-      cancel-in-progress: false
+      cancel-in-progress: true
 
     permissions:
       contents: read
@@ -81,7 +81,21 @@ jobs:
           VITE_API_BASE_URL: ""
         run: pnpm build
 
+      - name: Check current main revision
+        id: current-revision
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          latest_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$latest_sha" = "$EXPECTED_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping stale deployment $EXPECTED_SHA; main is $latest_sha"
+          fi
+
       - name: Validate deployment configuration
+        if: steps.current-revision.outputs.deploy == 'true'
         env:
           AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           ADMIN_BUCKET_NAME: ${{ vars.ADMIN_BUCKET_NAME }}
@@ -94,33 +108,64 @@ jobs:
           test -n "$ADMIN_CLOUDFRONT_DOMAIN_NAME"
 
       - name: Configure AWS credentials
+        if: steps.current-revision.outputs.deploy == 'true'
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload application
+      - name: Upload immutable assets
+        if: steps.current-revision.outputs.deploy == 'true'
+        env:
+          ADMIN_BUCKET_NAME: ${{ vars.ADMIN_BUCKET_NAME }}
+        run: |
+          aws s3 sync dist/assets/ "s3://$ADMIN_BUCKET_NAME/assets/" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Check current main revision before publish
+        id: publish-revision
+        if: steps.current-revision.outputs.deploy == 'true'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          latest_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$latest_sha" = "$EXPECTED_SHA" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping stale publish $EXPECTED_SHA; main is $latest_sha"
+          fi
+
+      - name: Publish application
+        if: steps.publish-revision.outputs.publish == 'true'
         env:
           ADMIN_BUCKET_NAME: ${{ vars.ADMIN_BUCKET_NAME }}
         run: |
           aws s3 sync dist/ "s3://$ADMIN_BUCKET_NAME" \
+            --exclude "assets/*" \
+            --exclude "index.html" \
             --delete \
             --cache-control "public,max-age=300"
-          aws s3 sync dist/assets/ "s3://$ADMIN_BUCKET_NAME/assets/" \
-            --cache-control "public,max-age=31536000,immutable"
           aws s3 cp dist/index.html "s3://$ADMIN_BUCKET_NAME/index.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "no-cache,no-store,must-revalidate"
 
-      - name: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache and wait
+        if: steps.publish-revision.outputs.publish == 'true'
         env:
           ADMIN_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.ADMIN_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
-          aws cloudfront create-invalidation \
+          invalidation_id="$(aws cloudfront create-invalidation \
             --distribution-id "$ADMIN_CLOUDFRONT_DISTRIBUTION_ID" \
-            --paths "/*"
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "$ADMIN_CLOUDFRONT_DISTRIBUTION_ID" \
+            --id "$invalidation_id"
 
       - name: Verify deployed application
+        if: steps.publish-revision.outputs.publish == 'true'
         env:
           ADMIN_CLOUDFRONT_DOMAIN_NAME: ${{ vars.ADMIN_CLOUDFRONT_DOMAIN_NAME }}
         run: |
